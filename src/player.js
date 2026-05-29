@@ -9,7 +9,8 @@ export class Player {
 
     // Visible avatar.
     this.mesh = new THREE.Group();
-    const bodyMat = new THREE.MeshLambertMaterial({ color: 0x3366cc, flatShading: true });
+    this.bodyMat = new THREE.MeshLambertMaterial({ color: 0x3366cc, flatShading: true });
+    const bodyMat = this.bodyMat;
     const headMat = new THREE.MeshLambertMaterial({ color: 0xffcc99, flatShading: true });
     const body = new THREE.Mesh(new THREE.CapsuleGeometry(0.4, 0.9, 4, 8), bodyMat);
     body.position.y = 0.85;
@@ -27,6 +28,7 @@ export class Player {
     this.camDist = 7;
 
     this.keys = new Set();
+    this.frozen = false; // true while the chat input is focused
     this._bindInput();
   }
 
@@ -56,12 +58,15 @@ export class Player {
     const sprint = this.keys.has('ShiftLeft') || this.keys.has('ShiftRight');
     const speed = (sprint ? 12 : 6) * dt;
 
-    // Movement is relative to where the camera is looking.
+    // Movement is relative to where the camera is looking. Suppressed while the
+    // player is typing in chat.
     let forward = 0, strafe = 0;
-    if (this.keys.has('KeyW') || this.keys.has('ArrowUp')) forward += 1;
-    if (this.keys.has('KeyS') || this.keys.has('ArrowDown')) forward -= 1;
-    if (this.keys.has('KeyA') || this.keys.has('ArrowLeft')) strafe -= 1;
-    if (this.keys.has('KeyD') || this.keys.has('ArrowRight')) strafe += 1;
+    if (!this.frozen) {
+      if (this.keys.has('KeyW') || this.keys.has('ArrowUp')) forward += 1;
+      if (this.keys.has('KeyS') || this.keys.has('ArrowDown')) forward -= 1;
+      if (this.keys.has('KeyA') || this.keys.has('ArrowLeft')) strafe -= 1;
+      if (this.keys.has('KeyD') || this.keys.has('ArrowRight')) strafe += 1;
+    }
 
     if (forward !== 0 || strafe !== 0) {
       // Camera-forward direction projected onto the ground plane.

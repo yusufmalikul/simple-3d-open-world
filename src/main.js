@@ -2,6 +2,9 @@ import * as THREE from 'three';
 import { createWorld, updateWater, WORLD } from './world.js';
 import { Player } from './player.js';
 import { Stats } from './stats.js';
+import { Network } from './network.js';
+import { RemotePlayers } from './remotePlayers.js';
+import { Chat } from './chat.js';
 
 const canvas = document.getElementById('app');
 
@@ -63,10 +66,40 @@ resize();
 
 const stats = new Stats();
 
+// --- Multiplayer ------------------------------------------------------------
+const remotes = new RemotePlayers(scene);
+const net = new Network();
+const chat = new Chat((text) => net.sendChat(text));
+
+net
+  .on('welcome', (m) => {
+    // Adopt our server-assigned color, then spawn everyone already online.
+    player.bodyMat.color.set(m.color);
+    m.players.forEach((p) => remotes.spawn(p));
+    chat.system('Connected. Press Enter to chat.');
+  })
+  .on('spawn', (m) => remotes.spawn(m))
+  .on('move', (m) => remotes.setTarget(m))
+  .on('leave', (m) => remotes.remove(m.id))
+  .on('chat', (m) => chat.message(m.name, m.text))
+  .on('system', (m) => chat.system(m.text))
+  .on('disconnect', () => chat.system('Disconnected from server.'))
+  .on('error', () => chat.system('Could not reach server — playing solo.'));
+
+// Ask for a name, then connect. Falls back to a guest name.
+const name = (window.prompt('Enter your name:', '') || '').trim().slice(0, 20)
+  || `Guest-${Math.floor(Math.random() * 1000)}`;
+net.connect(name);
+
 const clock = new THREE.Clock();
 function animate() {
   const dt = Math.min(clock.getDelta(), 0.1); // clamp so tab-switches don't jump
+
+  player.frozen = chat.isTyping();
   player.update(dt);
+  net.sendMove(player.position.x, player.position.z, player.facing, dt);
+  remotes.update(dt);
+
   updateWater(clock.elapsedTime);
   followSun();
   renderer.render(scene, camera);
