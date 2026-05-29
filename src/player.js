@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { heightAt, resolveCollision } from './world.js';
+import { heightAt, resolveCollision, WORLD } from './world.js';
 
 // A simple low-poly character (capsule body + sphere head) plus third-person
 // movement and a camera that orbits behind it.
@@ -82,8 +82,9 @@ export class Player {
       this.position.z = fixed.z;
     }
 
-    // Stick to the terrain surface.
-    this.position.y = heightAt(this.position.x, this.position.z);
+    // Stick to the terrain surface — but don't sink below the water; wade on it.
+    const ground = heightAt(this.position.x, this.position.z);
+    this.position.y = Math.max(ground, WORLD.waterLevel);
 
     this.mesh.position.copy(this.position);
     this.mesh.rotation.y = this.facing;

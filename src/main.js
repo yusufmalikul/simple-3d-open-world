@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { createWorld, WORLD } from './world.js';
+import { createWorld, updateWater, WORLD } from './world.js';
 import { Player } from './player.js';
 import { Stats } from './stats.js';
 
@@ -67,6 +67,7 @@ const clock = new THREE.Clock();
 function animate() {
   const dt = Math.min(clock.getDelta(), 0.1); // clamp so tab-switches don't jump
   player.update(dt);
+  updateWater(clock.elapsedTime);
   followSun();
   renderer.render(scene, camera);
   stats.update(dt);

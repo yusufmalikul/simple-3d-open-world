@@ -9,6 +9,10 @@ export const WORLD = {
   noiseScale: 0.012,// lower = bigger, gentler hills
   treeCount: 600,   // how many trees to scatter
   rockCount: 120,   // how many rocks to scatter
+  grassCount: 14000,// grass tufts on the forest floor
+  bushCount: 350,   // small bushes
+  flowerCount: 700, // flowers + mushrooms
+  waterLevel: -6,   // terrain below this height is underwater
   seed: 1337,
 };
 
@@ -113,8 +117,9 @@ function buildTrees() {
     const z = (rz * 2 - 1) * half;
     const y = heightAt(x, z);
 
-    // Keep trees off the steep peaks so they look planted, not floating.
+    // Keep trees off the steep peaks and out of the water.
     if (y > WORLD.hillHeight * 0.7) continue;
+    if (y < WORLD.waterLevel + 0.5) continue;
 
     const scale = 0.85 + rand2(attempt, attempt, WORLD.seed + 21) * 0.6;
 
@@ -199,11 +204,183 @@ function buildRocks() {
   return rocks;
 }
 
+// Scatter many small instances of `geo`/`mat` across the ground. `place` is
+// called per instance to position/scale/tint the shared dummy + return false to
+// skip (e.g. on steep peaks). Decorative only — no colliders, walk right through.
+function scatter(geo, mat, count, seedBase, place) {
+  const mesh = new THREE.InstancedMesh(geo, mat, count);
+  mesh.castShadow = false;       // tiny clutter shadows aren't worth the cost
+  mesh.receiveShadow = true;
+  const dummy = new THREE.Object3D();
+  const half = WORLD.size / 2 - 5;
+  let placed = 0;
+  let attempt = 0;
+
+  while (placed < count && attempt < count * 4) {
+    attempt++;
+    const rx = rand2(attempt, 0, seedBase + 1);
+    const rz = rand2(0, attempt, seedBase + 2);
+    const x = (rx * 2 - 1) * half;
+    const z = (rz * 2 - 1) * half;
+    const y = heightAt(x, z);
+    if (place(dummy, { x, y, z, rx, rz, attempt, placed, mesh })) {
+      dummy.updateMatrix();
+      mesh.setMatrixAt(placed, dummy.matrix);
+      placed++;
+    }
+  }
+  mesh.count = placed;
+  if (mesh.instanceColor) mesh.instanceColor.needsUpdate = true;
+  return mesh;
+}
+
+// Grass tufts, bushes, flowers & mushrooms covering the forest floor.
+function buildClutter() {
+  const group = new THREE.Group();
+
+  // --- Grass tufts: small, thin, ankle-height clumps. Kept low and dense so
+  // they read as ground cover, not scattered spikes. ------------------------
+  const grassGeo = new THREE.ConeGeometry(0.08, 0.35, 3, 1, true);
+  const grassMat = new THREE.MeshLambertMaterial({
+    color: 0xffffff, flatShading: true, side: THREE.DoubleSide,
+  });
+  group.add(scatter(grassGeo, grassMat, WORLD.grassCount, WORLD.seed + 200,
+    (d, { x, y, z, rx, rz, attempt, placed, mesh }) => {
+      if (y > WORLD.hillHeight * 0.85) return false; // bare on peaks
+      if (y < WORLD.waterLevel + 0.3) return false;  // not in water
+      const s = 0.6 + rand2(attempt, attempt, WORLD.seed + 201) * 0.7;
+      d.position.set(x, y + 0.22 * s, z);
+      d.rotation.set((rz - 0.5) * 0.4, rx * 6.28, (rx - 0.5) * 0.4); // lean
+      d.scale.set(s, s, s);
+      // Vary yellow-green ↔ green so the lawn isn't flat.
+      mesh.setColorAt(placed, tinted(0x4f9b3e, rz, 0.05, 0.06, 0.1));
+      return true;
+    }));
+
+  // --- Bushes: squashed low-poly blobs. -------------------------------------
+  const bushGeo = new THREE.IcosahedronGeometry(1, 0);
+  const bushMat = new THREE.MeshLambertMaterial({ color: 0xffffff, flatShading: true });
+  group.add(scatter(bushGeo, bushMat, WORLD.bushCount, WORLD.seed + 300,
+    (d, { x, y, z, rx, rz, attempt, placed, mesh }) => {
+      if (y > WORLD.hillHeight * 0.8) return false;
+      if (y < WORLD.waterLevel + 0.3) return false;
+      const s = 0.7 + rand2(attempt, attempt, WORLD.seed + 301) * 0.9;
+      d.position.set(x, y + s * 0.5, z);
+      d.rotation.set(rx * 6.28, rz * 6.28, 0);
+      d.scale.set(s * 1.3, s * 0.8, s * 1.3); // wide & low
+      mesh.setColorAt(placed, tinted(0x2e6b34, rx, 0.04, 0.05, 0.07));
+      return true;
+    }));
+
+  // --- Flowers: a thin green stem with a small flat colored head on top, so
+  // they actually read as flowers up close instead of floating gems. Stems and
+  // heads are two instanced meshes sharing the same scatter positions. --------
+  const STEM_H = 0.5;
+  const stemGeo = new THREE.CylinderGeometry(0.025, 0.025, STEM_H, 4);
+  const stemMat = new THREE.MeshLambertMaterial({ color: 0x3f7a35, flatShading: true });
+  // Flat-ish head: a low cylinder reads as a simple flower/daisy from above.
+  const headGeo = new THREE.CylinderGeometry(0.13, 0.06, 0.07, 6);
+  const headMat = new THREE.MeshLambertMaterial({ color: 0xffffff, flatShading: true });
+  const FLOWER_COLORS = [0xffffff, 0xffd64a, 0xff5a8a, 0x7a5cff, 0xff7733];
+
+  const stems = new THREE.InstancedMesh(stemGeo, stemMat, WORLD.flowerCount);
+  const heads = new THREE.InstancedMesh(headGeo, headMat, WORLD.flowerCount);
+  stems.receiveShadow = true;
+  const dummy = new THREE.Object3D();
+  const half = WORLD.size / 2 - 5;
+  let placed = 0;
+  let attempt = 0;
+  while (placed < WORLD.flowerCount && attempt < WORLD.flowerCount * 4) {
+    attempt++;
+    const rx = rand2(attempt, 0, WORLD.seed + 401);
+    const rz = rand2(0, attempt, WORLD.seed + 402);
+    const x = (rx * 2 - 1) * half;
+    const z = (rz * 2 - 1) * half;
+    const y = heightAt(x, z);
+    if (y > WORLD.hillHeight * 0.8) continue;
+    if (y < WORLD.waterLevel + 0.3) continue;
+    const s = 0.8 + rand2(attempt, attempt, WORLD.seed + 403) * 0.6;
+
+    dummy.rotation.set(0, rx * 6.28, 0);
+    dummy.scale.setScalar(s);
+    dummy.position.set(x, y + (STEM_H / 2) * s, z);
+    dummy.updateMatrix();
+    stems.setMatrixAt(placed, dummy.matrix);
+
+    dummy.position.set(x, y + STEM_H * s, z);
+    dummy.updateMatrix();
+    heads.setMatrixAt(placed, dummy.matrix);
+
+    const r = rand2(placed, placed * 7, WORLD.seed + 404);
+    heads.setColorAt(placed, _c.set(FLOWER_COLORS[Math.floor(r * FLOWER_COLORS.length)]));
+    placed++;
+  }
+  stems.count = placed;
+  heads.count = placed;
+  heads.instanceColor.needsUpdate = true;
+  group.add(stems, heads);
+
+  return group;
+}
+
+// A translucent low-poly water plane at waterLevel. Kept as a coarse grid so we
+// can animate gentle ripples on the vertices each frame. Exported base heights
+// let updateWater() wobble them without recomputing.
+let _water = null;
+let _waterBase = null;
+
+function buildWater() {
+  const span = WORLD.size + 40; // overhang past the world edge
+  const seg = 60;
+  const geo = new THREE.PlaneGeometry(span, span, seg, seg);
+  geo.rotateX(-Math.PI / 2);
+
+  // Cache the flat XZ-plane Y (all zero here) so ripples are relative to it.
+  _waterBase = geo.attributes.position.array.slice();
+
+  const mat = new THREE.MeshLambertMaterial({
+    color: 0x2f6f9f,
+    transparent: true,
+    opacity: 0.78,
+    flatShading: true,
+    // Don't write depth: the translucent surface then can't z-fight the lakebed
+    // where terrain sits near the water level (the shoreline flicker).
+    depthWrite: false,
+  });
+  const mesh = new THREE.Mesh(geo, mat);
+  // Sit slightly above waterLevel so shallow shores read as water *over* land
+  // rather than two coplanar surfaces fighting for the same pixels.
+  mesh.position.y = WORLD.waterLevel + 0.4;
+  mesh.receiveShadow = false; // shadows on transparent water look muddy
+  mesh.renderOrder = 1;       // draw after opaque terrain
+  _water = mesh;
+  return mesh;
+}
+
+// Gentle animated ripples. Call once per frame with elapsed time in seconds.
+export function updateWater(t) {
+  if (!_water) return;
+  const pos = _water.geometry.attributes.position;
+  const arr = pos.array;
+  for (let i = 0; i < arr.length; i += 3) {
+    const x = _waterBase[i];
+    const z = _waterBase[i + 2];
+    // Tiny, short-wavelength shimmer — a calm forest pond, not ocean swell.
+    arr[i + 1] =
+      Math.sin(x * 0.25 + t * 0.7) * 0.05 +
+      Math.cos(z * 0.3 + t * 0.5) * 0.05;
+  }
+  pos.needsUpdate = true;
+  _water.geometry.computeVertexNormals();
+}
+
 // Assemble the full scene world and return it for adding to the scene.
 export function createWorld() {
   const world = new THREE.Group();
   world.add(buildTerrain());
+  world.add(buildWater());
   world.add(buildTrees());
   world.add(buildRocks());
+  world.add(buildClutter());
   return world;
 }
