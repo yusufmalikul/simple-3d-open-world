@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { heightAt } from './world.js';
+import { heightAt, resolveCollision } from './world.js';
 
 // A simple low-poly character (capsule body + sphere head) plus third-person
 // movement and a camera that orbits behind it.
@@ -75,6 +75,11 @@ export class Player {
       this.position.x += dx * speed;
       this.position.z += dz * speed;
       this.facing = Math.atan2(dx, dz);
+
+      // Push back out of any tree/rock we walked into.
+      const fixed = resolveCollision(this.position.x, this.position.z, 0.5);
+      this.position.x = fixed.x;
+      this.position.z = fixed.z;
     }
 
     // Stick to the terrain surface.
