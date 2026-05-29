@@ -92,7 +92,8 @@ net
   .on('chat', (m) => chat.message(m.name, m.text))
   .on('system', (m) => chat.system(m.text))
   .on('disconnect', () => chat.system('Disconnected from server.'))
-  .on('error', () => chat.system('Could not reach server — playing solo.'));
+  .on('error', () => chat.system('Could not reach server — playing solo.'))
+  .on('solo', () => chat.system('Single-player mode — no multiplayer server.'));
 
 // Ask for a name, then connect. Falls back to a guest name.
 const name = (window.prompt('Enter your name:', '') || '').trim().slice(0, 20)

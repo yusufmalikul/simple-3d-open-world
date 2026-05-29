@@ -1,11 +1,16 @@
 // Thin client wrapper around the game WebSocket. Connects, sends move/chat,
 // and dispatches incoming server messages to registered handlers.
 
-// In dev the Vite page is on :5173 and the server on :8080. In production set
-// VITE_SERVER_URL (e.g. wss://your-app.onrender.com) at build time.
+// Where to find the multiplayer server.
+//  - If VITE_SERVER_URL is set at build time, always use it (e.g. a deployed
+//    wss:// server).
+//  - Otherwise, only auto-default to the local dev server when the page is
+//    served over plain http (i.e. local development). On an https host (like
+//    GitHub Pages) with no server configured, we run single-player: a browser
+//    can't open an insecure ws:// from an https page anyway.
 const SERVER_URL =
   import.meta.env.VITE_SERVER_URL ||
-  `ws://${location.hostname}:8080`;
+  (location.protocol === 'http:' ? `ws://${location.hostname}:8080` : null);
 
 export class Network {
   constructor() {
@@ -20,6 +25,11 @@ export class Network {
   on(type, fn) { this.handlers[type] = fn; return this; }
 
   connect(name) {
+    // No server configured (e.g. static single-player host) — run solo.
+    if (!SERVER_URL) {
+      this.handlers.solo?.();
+      return;
+    }
     this._pendingName = name;
     this.ws = new WebSocket(SERVER_URL);
 
