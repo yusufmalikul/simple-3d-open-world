@@ -6,6 +6,8 @@ mobile touch support, and real-time multiplayer with chat. Built with
 [Three.js](https://threejs.org/) and [Vite](https://vitejs.dev/), no heavy
 framework.
 
+**▶ Play it live: https://yusufmalikul.github.io/simple-3d-open-world/**
+
 ![Screenshot](./simple_3d_open_world.png)
 
 ## Features
@@ -85,17 +87,33 @@ src/
 Most world parameters (size, hill height, tree/rock/grass counts, water level)
 live in the `WORLD` object at the top of `src/world.js`.
 
-## Deploying multiplayer
+## Deployment
 
-The web app is static — build it with `npm run build` and host the `dist/`
-folder anywhere (GitHub Pages, Netlify, etc.).
+### Web app → GitHub Pages (automatic)
+
+The client is static and deploys to GitHub Pages on every push to `main` via the
+workflow in `.github/workflows/deploy.yml`. To enable it once:
+
+1. Repo **Settings → Pages → Build and deployment → Source** → select
+   **GitHub Actions**.
+2. Push to `main`. The site publishes to
+   https://yusufmalikul.github.io/simple-3d-open-world/
+
+`vite.config.js` sets the `/simple-3d-open-world/` base path for production so
+assets resolve on the Pages subpath; local dev stays at root.
+
+On a static host with no multiplayer server configured, the game runs in
+single-player mode (it won't try to open an insecure `ws://` from an `https`
+page).
+
+### Multiplayer server
 
 The game server needs a Node host that allows WebSocket connections. Free tiers
 that work well: **Render**, **Fly.io**, **Railway**. The server reads `PORT`
 from the environment, so most platforms run it as-is.
 
-Point the client at your deployed server by setting `VITE_SERVER_URL` at build
-time:
+To enable multiplayer on the deployed client, build it pointing at your deployed
+(secure `wss://`) server:
 
 ```bash
 VITE_SERVER_URL=wss://your-app.onrender.com npm run build
