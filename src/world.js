@@ -34,6 +34,23 @@ export function resolveCollision(x, z, playerRadius = 0.4) {
   return { x, z };
 }
 
+// Return a base color nudged by deterministic per-instance variation so a field
+// of instances doesn't look cloned. `hueShift`/`light`/`sat` are small +/- amounts.
+const _c = new THREE.Color();
+function tinted(base, t, hueShift, lightShift, satShift) {
+  _c.set(base);
+  const hsl = {};
+  _c.getHSL(hsl);
+  // t is a [0,1) random; map to [-1,1] for symmetric variation.
+  const v = t * 2 - 1;
+  _c.setHSL(
+    (hsl.h + v * hueShift + 1) % 1,
+    THREE.MathUtils.clamp(hsl.s + v * satShift, 0, 1),
+    THREE.MathUtils.clamp(hsl.l + v * lightShift, 0, 1),
+  );
+  return _c;
+}
+
 // Sample terrain height at any world (x, z). Shared by the mesh builder AND the
 // player, so the player walks exactly on the visible ground.
 export function heightAt(x, z) {
@@ -72,9 +89,10 @@ function buildTrees() {
   const TRUNK_H = 7;   // trunk height
   const CONE_H = 13;   // foliage cone height
   const trunkGeo = new THREE.CylinderGeometry(0.45, 0.7, TRUNK_H, 6);
-  const trunkMat = new THREE.MeshLambertMaterial({ color: 0x6b4a2b, flatShading: true });
+  // White base so per-instance setColorAt() tints show correctly (it multiplies).
+  const trunkMat = new THREE.MeshLambertMaterial({ color: 0xffffff, flatShading: true });
   const leafGeo = new THREE.ConeGeometry(3.4, CONE_H, 7);
-  const leafMat = new THREE.MeshLambertMaterial({ color: 0x2f6d34, flatShading: true });
+  const leafMat = new THREE.MeshLambertMaterial({ color: 0xffffff, flatShading: true });
 
   const trunks = new THREE.InstancedMesh(trunkGeo, trunkMat, WORLD.treeCount);
   const leaves = new THREE.InstancedMesh(leafGeo, leafMat, WORLD.treeCount);
@@ -112,6 +130,15 @@ function buildTrees() {
     dummy.updateMatrix();
     leaves.setMatrixAt(placed, dummy.matrix);
 
+    // Per-instance tint: vary foliage hue (yellow↔blue green) and lightness so
+    // the canopy reads as many distinct trees, not one cloned model.
+    // Mostly hue variety; keep the lightness swing small so trees don't crush
+    // to black or wash out to near-white.
+    const tLeaf = rand2(attempt, attempt + 5, WORLD.seed + 31);
+    leaves.setColorAt(placed, tinted(0x357a3c, tLeaf, 0.045, 0.05, 0.08));
+    const tTrunk = rand2(attempt + 3, attempt, WORLD.seed + 37);
+    trunks.setColorAt(placed, tinted(0x6b4a2b, tTrunk, 0.02, 0.04, 0.05));
+
     // Collide against the trunk (a little wider than the visible base).
     colliders.push({ x, z, radius: 0.7 * scale + 0.2 });
 
@@ -120,6 +147,8 @@ function buildTrees() {
 
   trunks.count = placed;
   leaves.count = placed;
+  trunks.instanceColor.needsUpdate = true;
+  leaves.instanceColor.needsUpdate = true;
   group.add(trunks, leaves);
   return group;
 }
@@ -128,7 +157,8 @@ function buildTrees() {
 function buildRocks() {
   // Icosahedron with no subdivisions = chunky faceted boulder.
   const rockGeo = new THREE.IcosahedronGeometry(1, 0);
-  const rockMat = new THREE.MeshLambertMaterial({ color: 0x8a8d91, flatShading: true });
+  // White base so per-instance tints apply.
+  const rockMat = new THREE.MeshLambertMaterial({ color: 0xffffff, flatShading: true });
   const rocks = new THREE.InstancedMesh(rockGeo, rockMat, WORLD.rockCount);
   rocks.castShadow = true;
   rocks.receiveShadow = true;
@@ -156,11 +186,16 @@ function buildRocks() {
     dummy.updateMatrix();
     rocks.setMatrixAt(placed, dummy.matrix);
 
+    // Vary grey lightness + a hint of hue so boulders aren't identical.
+    const tRock = rand2(attempt + 9, attempt, WORLD.seed + 71);
+    rocks.setColorAt(placed, tinted(0x8a8d91, tRock, 0.02, 0.14, 0.03));
+
     colliders.push({ x, z, radius: size * 0.7 });
     placed++;
   }
 
   rocks.count = placed;
+  rocks.instanceColor.needsUpdate = true;
   return rocks;
 }
 
