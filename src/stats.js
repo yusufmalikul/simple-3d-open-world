@@ -4,14 +4,28 @@
 
 export class Stats {
   constructor() {
-    const el = document.createElement('div');
-    el.style.cssText = `
-      position: fixed; top: 8px; left: 8px; z-index: 10;
-      font: 12px/1.45 ui-monospace, Menlo, Consolas, monospace;
-      color: #b6ff8c; background: rgba(0,0,0,.45);
-      padding: 6px 9px; border-radius: 6px; white-space: pre;
-      pointer-events: none; user-select: none;
+    const style = document.createElement('style');
+    style.textContent = `
+      #stats {
+        position: fixed; top: 8px; left: 8px; z-index: 10;
+        font: 12px/1.45 ui-monospace, Menlo, Consolas, monospace;
+        color: #b6ff8c; background: rgba(0,0,0,.45);
+        padding: 6px 9px; border-radius: 6px; white-space: pre;
+        pointer-events: none; user-select: none;
+      }
+      /* On mobile, center it up top so it can't collide with the chat (left)
+         or the fullscreen button (right). */
+      @media (max-width: 900px), (pointer: coarse) {
+        #stats {
+          left: 50%; transform: translateX(-50%);
+          font-size: 11px; padding: 4px 8px;
+        }
+      }
     `;
+    document.head.appendChild(style);
+
+    const el = document.createElement('div');
+    el.id = 'stats';
     document.body.appendChild(el);
     this.el = el;
 

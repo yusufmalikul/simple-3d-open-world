@@ -29,6 +29,9 @@ export class Player {
 
     this.keys = new Set();
     this.frozen = false; // true while the chat input is focused
+    // Optional touch input source (set by main.js on touch devices). Provides
+    // getMove() -> {forward, strafe} and isSprinting() -> bool.
+    this.touch = null;
     this._bindInput();
   }
 
@@ -36,16 +39,24 @@ export class Player {
     window.addEventListener('keydown', (e) => this.keys.add(e.code));
     window.addEventListener('keyup', (e) => this.keys.delete(e.code));
 
-    // Drag to look. Pointer events cover mouse + touch.
-    let dragging = false;
+    // Look by dragging. Track a single look-pointer by id so it doesn't fight
+    // the on-screen joystick/buttons (which mark their own touches handled).
+    let lookId = null;
     let lastX = 0, lastY = 0;
     const canvas = document.getElementById('app');
+
     canvas.addEventListener('pointerdown', (e) => {
-      dragging = true; lastX = e.clientX; lastY = e.clientY;
+      // Ignore touches the UI controls have claimed.
+      if (e.target.closest?.('[data-control]')) return;
+      if (lookId !== null) return; // already tracking one
+      lookId = e.pointerId;
+      lastX = e.clientX; lastY = e.clientY;
     });
-    window.addEventListener('pointerup', () => { dragging = false; });
+    const end = (e) => { if (e.pointerId === lookId) lookId = null; };
+    window.addEventListener('pointerup', end);
+    window.addEventListener('pointercancel', end);
     window.addEventListener('pointermove', (e) => {
-      if (!dragging) return;
+      if (e.pointerId !== lookId) return;
       this.camYaw -= (e.clientX - lastX) * 0.005;
       this.camPitch = THREE.MathUtils.clamp(
         this.camPitch - (e.clientY - lastY) * 0.005, 0.15, 1.2,
@@ -55,8 +66,7 @@ export class Player {
   }
 
   update(dt) {
-    const sprint = this.keys.has('ShiftLeft') || this.keys.has('ShiftRight');
-    const speed = (sprint ? 12 : 6) * dt;
+    let sprint = this.keys.has('ShiftLeft') || this.keys.has('ShiftRight');
 
     // Movement is relative to where the camera is looking. Suppressed while the
     // player is typing in chat.
@@ -66,7 +76,17 @@ export class Player {
       if (this.keys.has('KeyS') || this.keys.has('ArrowDown')) forward -= 1;
       if (this.keys.has('KeyA') || this.keys.has('ArrowLeft')) strafe -= 1;
       if (this.keys.has('KeyD') || this.keys.has('ArrowRight')) strafe += 1;
+
+      // Touch joystick adds to / overrides keyboard input.
+      if (this.touch) {
+        const m = this.touch.getMove();
+        forward += m.forward;
+        strafe += m.strafe;
+        if (this.touch.isSprinting()) sprint = true;
+      }
     }
+
+    const speed = (sprint ? 12 : 6) * dt;
 
     if (forward !== 0 || strafe !== 0) {
       // Camera-forward direction projected onto the ground plane.
@@ -74,8 +94,10 @@ export class Player {
       const cos = Math.cos(this.camYaw);
       let dx = forward * sin - strafe * cos;
       let dz = forward * cos + strafe * sin;
-      const len = Math.hypot(dx, dz) || 1;
-      dx /= len; dz /= len;
+      // Cap to unit length (diagonal keys) but keep analog joystick magnitude
+      // so a gently-pushed stick walks slower than a full push.
+      const len = Math.hypot(dx, dz);
+      if (len > 1) { dx /= len; dz /= len; }
 
       this.position.x += dx * speed;
       this.position.z += dz * speed;

@@ -5,6 +5,8 @@ import { Stats } from './stats.js';
 import { Network } from './network.js';
 import { RemotePlayers } from './remotePlayers.js';
 import { Chat } from './chat.js';
+import { TouchControls } from './touchControls.js';
+import { createFullscreenButton } from './fullscreen.js';
 
 const canvas = document.getElementById('app');
 
@@ -47,6 +49,12 @@ scene.add(createWorld());
 
 const player = new Player(camera);
 scene.add(player.mesh);
+
+// On-screen controls for touch devices (no-op on desktop).
+const touch = new TouchControls();
+if (touch.enabled) player.touch = touch;
+
+createFullscreenButton();
 
 // Keep the shadow frustum following the player so shadows stay crisp nearby.
 function followSun() {

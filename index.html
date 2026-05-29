@@ -2,22 +2,40 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="viewport"
+          content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
     <title>Woods — Simple 3D Open World</title>
     <style>
-      html, body { margin: 0; height: 100%; overflow: hidden; background: #87ceeb; }
-      #app { width: 100vw; height: 100vh; display: block; }
+      html, body {
+        margin: 0; height: 100%; overflow: hidden; background: #87ceeb;
+        /* Stop the page itself from panning/zooming on touch. */
+        touch-action: none; overscroll-behavior: none;
+        -webkit-user-select: none; user-select: none;
+        -webkit-tap-highlight-color: transparent;
+      }
+      #app { width: 100vw; height: 100vh; display: block; touch-action: none; }
       #hint {
         position: fixed; right: 12px; bottom: 12px;
         font: 13px/1.4 system-ui, sans-serif; color: #fff;
         text-shadow: 0 1px 2px rgba(0,0,0,.5); user-select: none;
         pointer-events: none; text-align: right;
       }
+      /* Ask phones held upright to rotate; shown only in portrait. */
+      #rotate {
+        position: fixed; inset: 0; z-index: 100; display: none;
+        align-items: center; justify-content: center; text-align: center;
+        background: #2b3a26; color: #fff;
+        font: 18px/1.5 system-ui, sans-serif; padding: 24px;
+      }
+      @media (orientation: portrait) and (max-width: 900px) {
+        #rotate { display: flex; }
+      }
     </style>
   </head>
   <body>
     <canvas id="app"></canvas>
     <div id="hint">WASD / arrows to move · mouse drag to look · Shift to sprint</div>
+    <div id="rotate">🔄 Please rotate your device to landscape to play.</div>
     <script type="module" src="/src/main.js"></script>
   </body>
 </html>
