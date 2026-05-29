@@ -7,6 +7,7 @@ import { RemotePlayers } from './remotePlayers.js';
 import { Chat } from './chat.js';
 import { TouchControls } from './touchControls.js';
 import { createFullscreenButton } from './fullscreen.js';
+import { Ambience } from './ambience.js';
 
 const canvas = document.getElementById('app');
 
@@ -55,6 +56,9 @@ const touch = new TouchControls();
 if (touch.enabled) player.touch = touch;
 
 createFullscreenButton();
+
+// Procedural forest ambience (wind + birds). Starts on first interaction.
+new Ambience();
 
 // Keep the shadow frustum following the player so shadows stay crisp nearby.
 function followSun() {
