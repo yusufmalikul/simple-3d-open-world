@@ -18,7 +18,16 @@ export class Player {
     const head = new THREE.Mesh(new THREE.SphereGeometry(0.35, 10, 8), headMat);
     head.position.y = 1.7;
     head.castShadow = true;
-    this.mesh.add(body, head);
+
+    // Two eyes on the front of the head (the +z face, which is the way the
+    // body looks since facing = atan2(dx, dz)).
+    const eyeMat = new THREE.MeshLambertMaterial({ color: 0x111111, flatShading: true });
+    const eyeGeo = new THREE.SphereGeometry(0.07, 8, 6);
+    const leftEye = new THREE.Mesh(eyeGeo, eyeMat);
+    const rightEye = new THREE.Mesh(eyeGeo, eyeMat);
+    leftEye.position.set(-0.13, 1.78, 0.3);
+    rightEye.position.set(0.13, 1.78, 0.3);
+    this.mesh.add(body, head, leftEye, rightEye);
 
     // State.
     this.position = new THREE.Vector3(0, heightAt(0, 0), 0);
